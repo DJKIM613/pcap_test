@@ -75,7 +75,7 @@ void parsing_packet(const u_char *p, int len){
 
 	int data_size = (len - sizeof(struct ether_header) - iph->ip_hl * 4 - tcph->th_off < 32) ? len - sizeof(struct ether_header) - iph->ip_hl * 4 - tcph->th_off : 32;
 	printf("data : ");
-	dump(p + 54, data_size);
+	dump(p + sizeof(struct ether_header) + iph->ip_hl * 4 + tcph->th_off, data_size);
 }
 
 bool check_IPv4_TCP(const u_char *p, int len){
