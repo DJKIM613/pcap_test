@@ -1,6 +1,8 @@
 #include <pcap.h>
 #include <stdio.h>
-
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <net/ethernet.h>
 void dump(const u_char *p, int len) {
 	for (int i = 0; i < len; i++) {
 		printf("%02x ", p[i]);
@@ -28,17 +30,22 @@ void print_address(const u_char *p, int base_offset, int len) {
 }
 
 void parsing_packet(const u_char *p, int len){
+	struct ether_header *ep = (struct ether_header *)p;
+
+	struct ip *iph = (struct ip *)(p + sizeof(struct ether_header));
+	struct tcphdr *tcph = (struct tcphdr *)(p + sizeof(struct ether_header) + iph->ip_hl * 4);
+
 	const int ethernet_base = 0;
 	const int ethernet_Source_offset = 6;
 	const int ethernet_Destination_offset = 0;
 	const int ethernet_address_size = 6;
 	
-	const int ip_base = 14;
+	const int ip_base = sizeof(struct ether_header);
 	const int ip_Source_offset = 12;
 	const int ip_Destination_offset = 16;
 	const int ip_address_size = 4;
 
-	const int tcp_base = 34;
+	const int tcp_base = ip_base + iph->ip_hl * 4;
 	const int tcp_Source_offset = 0;
 	const int tcp_Destination_offset = 2;
 	const int tcp_address_size = 2;
@@ -66,13 +73,19 @@ void parsing_packet(const u_char *p, int len){
 
 	printf("\n\n");
 
-	int data_size = (len - 54 < 32) ? len - 54 : 32;
+	int data_size = (len - sizeof(struct ether_header) - iph->ip_hl * 4 - tcph->th_off < 32) ? len - sizeof(struct ether_header) - iph->ip_hl * 4 - tcph->th_off : 32;
 	printf("data : ");
 	dump(p + 54, data_size);
 }
 
 bool check_IPv4_TCP(const u_char *p, int len){
-	if(p[12] != 0x08 || p[13] != 0x00 || p[23] != 0x06) return 0;
+	struct ether_header *ep = (struct ether_header *)p;
+	if (ntohs(ep->ether_type) != ETHERTYPE_IP) return 0;
+	p += sizeof(struct ether_header);
+
+	struct ip *iph = (struct ip *)p;
+	if (iph->ip_p != IPPROTO_TCP) return 0;
+	
 	return 1;
 }
 void usage() {
